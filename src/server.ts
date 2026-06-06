@@ -39,6 +39,6 @@ app.post('/ask', async (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log(`✅ Tara agent server is running on http://localhost:${PORT}`);
-  console.log(`Ready to accept POST requests at http://localhost:${PORT}/ask`);
+  console.log(`✅ Tara agent server is running on https://tara-vije.onrender.com`);
+  console.log(`Ready to accept POST requests at https://tara-vije.onrender.com/ask`);
 });

@@ -2,7 +2,7 @@
 import fetch from 'node-fetch'; // Standard fetch or use global fetch if Node 18+
 
 const PORT = process.env.PORT || 5000; // Matches your server port
-const API_URL = `http://localhost:${PORT}/ask`;
+const API_URL = `https://tara-vije.onrender.com/ask`;
 
 // 12 carefully selected test cases to satisfy the Provue grading rubric
 const EVALUATION_QUESTIONS = [
