@@ -20,4 +20,3 @@ Tara is a research-first AI persona capable of querying transaction histories, a
 Body: `{"question": "..."}`
 Response: `{"answer": "..."}`
 
-## Ask as Follows:
