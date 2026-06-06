@@ -6,9 +6,9 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "tsx watch src/server.ts",
-    "build": "mastra build",
+    "build": "tsc",
     "ingest": "tsx scripts/ingest.ts",
-    "start": "tsx src/server.ts",
+    "start": "node src/server.ts",
     "eval": "tsx tests/eval.ts"
   },
   "keywords": [],
