@@ -21,12 +21,11 @@ Create a `.env` file in the project root with the following variables:
 ```env
 DATABASE_URL=postgresql://[user]:[password]@[host]:[port]/[db]?sslmode=require
 OPENAI_API_KEY=your_key_here
-```
-add this to `.env` and change to sample_b and sample_c one after another to ingest the data of all there samples
-NOTE: after successful ingest sample_a data comment or remove the `truncate line` at line no.36 in `scripts/ingest.ts` file
 DATA_DIR=data/sample_a npx tsx scripts/ingest.ts
 
 ```
+add DATA_DIR='...' to `.env` and change to sample_b and sample_c one after another to ingest the data of all there samples
+NOTE: after successful ingest sample_a data comment or remove the `truncate line` at line no.36 in `scripts/ingest.ts` file
 
 ### 3. Data Ingestion
 
@@ -63,12 +62,14 @@ This project is configured for deployment on **Render**.
 4. **Environment Variables**: Ensure `DATABASE_URL` and `OPENAI_API_KEY` are configured in the Render Dashboard.
 5. **Node Version**: Set `NODE_VERSION` to `22.13.0` in Render Settings.
 
+The database is deployed on neon.tech
+
 ## API Documentation
 
 The agent exposes a single endpoint for all interactions:
 
 **`POST /ask`**
-
+* **Talking to agent** : `Invoke-RestMethod -Uri "https://tara-vije.onrender.com/ask" -Method POST -ContentType "application/json" -Body '{"question":"How much total amount did I spend on the merchant SWIGGY?"}'` 
 * **Body**: `{"question": "How much did I spend on food in total?"}`
 * **Response**: `{"answer": "..."}`
 
