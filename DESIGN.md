@@ -1,74 +1,259 @@
-1. Postgres Schema
-The schema is designed for high-performance financial time-series analysis and efficient transaction filtering.
+# Provue Finance Research Agent (Tara)
 
-transactions: Stores historical spend data.
+## 1. Postgres Schema
 
-Columns: id (PK), date, merchant, normalized_merchant (Indexed), category, amount, currency, memo.
+The schema is designed for performance, scalability, and relational integrity to support complex financial analytics efficiently.
 
-Reasoning: Indexed normalized_merchant enables rapid filtering for recurring spend analysis.
+### `transactions`
 
-funds: Metadata for mutual funds.
+Stores historical spending data.
 
-Columns: id (PK), name, category.
+**Columns:**
 
-fund_navs: Historical price data.
+* `id` (PK)
+* `date`
+* `merchant`
+* `normalized_merchant` (Indexed)
+* `category`
+* `amount`
+* `currency`
+* `memo`
 
-Columns: fund_id (FK -> funds.id), date, nav.
+**Rationale:**
+The `normalized_merchant` index enables fast merchant alias grouping and spend aggregation, improving query performance for merchant-based analysis.
 
-Reasoning: Separate table allows efficient JOINs for period return calculations.
+### `funds`
 
-holdings: User's investment portfolio.
+Stores metadata for mutual funds.
 
-Columns: fund_id (FK), units, purchase_date, purchase_nav.
+**Columns:**
 
-2. Tool Design
-I split tools into two distinct domains to maintain separation of concerns:
+* `id` (PK)
+* `name`
+* `category`
 
-queryTransactions: Handles all spend-related logic.
+### `fund_navs`
 
-analyzeFunds: Handles portfolio and market performance.
+Stores historical Net Asset Value (NAV) time-series data.
 
-Why? This separation allows the LLM to easily identify the correct domain. Adding/updating transaction logic won't accidentally impact complex financial investment calculations.
+**Columns:**
 
-3. Grounding & Reliability
-To prevent hallucination, the agent never performs math in the prompt window.
+* `fund_id` (FK → `funds.id`)
+* `date`
+* `nav`
 
-Pre-computed Math: My tools return fully processed results (e.g., realized_return_pct). The LLM acts only as a synthesizer of pre-computed database outputs, not a calculator.
+**Rationale:**
+Separating NAV history into its own table allows efficient period-return calculations using SQL joins and window functions.
 
-SQL Logic: All aggregations use SQL SUM() or CTEs, ensuring arithmetic precision directly from the DB.
+### `holdings`
 
-4. Key Financial Formulas
-Spend: SUM(amount).
+Stores the user's investment portfolio.
 
-Net Spend: SUM(amount) where category != 'transfer'.
+**Columns:**
 
-Merchant Matching: LOWER(name).trim().split(' ')[0] creates a clean alias for grouping disparate transaction names.
+* `fund_id` (FK → `funds.id`)
+* `units`
+* `purchase_date`
+* `purchase_nav`
 
-Recurring Detection: GROUP BY merchant, amount HAVING COUNT(*) > 1.
+**Rationale:**
+This relational structure enables accurate portfolio valuation and return calculations by combining holdings with historical and current NAV data.
 
-Fund Period Return: (End_NAV - Start_NAV) / Start_NAV * 100.
+---
 
-Holding Realized Return: ((Current_NAV * Units) - (Purchase_NAV * Units)) / (Purchase_NAV * Units) * 100.
+## 2. Tool Design
 
-5. Evals & Observability
-Evals: tests/eval.ts runs 14 cases ranging from simple lookups to complex fund returns. Cases include edge cases like "no-data" and "currency filters."
+The system uses a domain-specific tool architecture to reduce LLM ambiguity and improve maintainability.
 
-Observability: I used standard console logging with request IDs in server.ts.
+### `queryTransactions`
 
-Inspection: To inspect a failed run, check the Render logs for the Request ID associated with the timestamp. This reveals exactly which SQL query the agent constructed and where the data gap exists.
+Handles all transaction-related analysis, including:
 
-6. Milestones & Deployment
-Async Milestone: I intentionally skipped long-running async tool milestones to minimize architectural complexity, as the dataset fits comfortably in memory/DB for synchronous processing.
+* Spend aggregation
+* Merchant analysis
+* Category breakdowns
+* Date-range filtering
 
-Deployment: Deployed on Render with a Neon Postgres instance.
+### `analyzeFunds`
 
-Tradeoff: Cloud-hosted Postgres introduces latency (50-100ms) compared to local, but it satisfies the requirement for a public URL.
+Handles investment and mutual fund analytics, including:
 
-7. Failure Modes & Future Work
-Failure Modes: System can fail if the user queries a fund name that does not exist in the DB (though ILIKE mitigates this) or if NAV data is missing for specific date windows.
+* NAV lookups
+* Period-return calculations
+* Portfolio performance analysis
+* Holding profit and loss calculations
 
-Future Improvements:
+### Design Rationale
 
-Add a caching layer (Redis) to reduce latency on repeated fund performance queries.
+Splitting tools by financial domain simplifies tool selection for the LLM and keeps implementation concerns isolated and maintainable.
 
-Implement robust error retries for the LLM if a tool call returns a database connectivity timeout.
+---
+
+## 3. Grounding & Reliability
+
+To minimize hallucinations and ensure financial accuracy, the agent acts as a coordinator rather than a calculator.
+
+### SQL-Driven Computation
+
+All financial calculations are executed directly within PostgreSQL queries rather than generated by the LLM.
+
+### Deterministic Results
+
+Aggregations such as `SUM()`, `AVG()`, and `GROUP BY` are computed by the database, ensuring consistency and eliminating arithmetic drift in generated responses.
+
+---
+
+## 4. Key Financial Formulas
+
+### Total Spend
+
+```sql
+SUM(amount)
+```
+
+### Net Spend
+
+```sql
+SUM(amount)
+WHERE category != 'transfer'
+```
+
+### Merchant Matching
+
+Merchant names are normalized using:
+
+```text
+LOWER(merchant)
+```
+
+A tokenization function extracts the primary brand identifier to group merchant aliases consistently.
+
+### Recurring Transaction Detection
+
+```sql
+GROUP BY merchant, amount
+HAVING COUNT(*) > 1
+```
+
+### Fund Period Return
+
+```text
+((End_NAV - Start_NAV) / Start_NAV) * 100
+```
+
+### Holding Return
+
+```text
+((Current_NAV × Units) - (Purchase_NAV × Units))
+------------------------------------------------ × 100
+      (Purchase_NAV × Units)
+```
+
+---
+
+## 5. Evaluation & Observability
+
+### Evaluation Framework
+
+A repeatable evaluation suite (`tests/eval.ts`) validates system behavior across 14 critical scenarios, including:
+
+* Date-range spend lookups
+* Category comparisons
+* Merchant aggregation
+* Fund return calculations
+* Portfolio holding analysis
+
+Each test verifies:
+
+* `response.ok === true`
+* A valid answer is returned
+
+### Observability
+
+The `/ask` endpoint includes:
+
+* Request ID tracking
+* Structured console logging
+* Tool invocation logging
+* Query parameter inspection
+
+### Failure Inspection
+
+For every request, the system logs:
+
+* Selected tool
+* Tool parameters
+* Database query metadata
+
+This allows rapid diagnosis when an internal error, timeout, or empty response occurs.
+
+---
+
+## 6. Milestones & Deployment
+
+### Async Processing Decision
+
+The implementation uses a synchronous request-response architecture.
+
+**Reasoning:**
+
+* Dataset size is relatively small
+* Query latency remains below 500ms
+* Background job queues would introduce unnecessary complexity
+
+### Deployment Architecture
+
+**Application Hosting:** Render
+
+**Database:** Neon PostgreSQL
+
+### Trade-offs
+
+Using a managed cloud database introduces approximately 50ms of network latency but provides:
+
+* Automated backups
+* High availability
+* Managed scaling
+* Operational simplicity
+
+---
+
+## 7. Failure Modes & Future Work
+
+### Known Failure Modes
+
+#### Data Availability
+
+* User requests funds that do not exist in the database.
+* User requests merchants that cannot be matched.
+
+#### Infrastructure
+
+* Database connection pool saturation.
+* Network timeouts between application and database.
+
+### Future Improvements
+
+#### Redis Caching
+
+Introduce Redis caching for:
+
+* Frequently requested NAV histories
+* Common spend-analysis queries
+* Portfolio summary computations
+
+#### Improved Resiliency
+
+Implement:
+
+* Exponential backoff strategies
+* Automatic retry logic for transient failures
+* Tool-calling recovery when queries return null results or time out
+
+#### Enhanced Monitoring
+
+Add:
+
+* Centralized log aggregation
+* Query performance dashboards
+* Error-rate alerting and observability metrics
