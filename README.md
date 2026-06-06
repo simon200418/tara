@@ -21,7 +21,10 @@ Create a `.env` file in the project root with the following variables:
 ```env
 DATABASE_URL=postgresql://[user]:[password]@[host]:[port]/[db]?sslmode=require
 OPENAI_API_KEY=your_key_here
-NODE_ENV=production
+```
+add this to `.env` and change to sample_b and sample_c one after another to ingest the data of all there samples
+NOTE: after successful ingest sample_a data comment or remove the `truncate line` at line no.36 in `scripts/ingest.ts` file
+DATA_DIR=data/sample_a npx tsx scripts/ingest.ts
 
 ```
 
